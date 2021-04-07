@@ -19,32 +19,13 @@ def standard(img):
     w,h = img.shape[1],img.shape[0]
     w_i,h_i=[],[]
     n_grids = 10
-    # 计算每一个单元格w与h的大小
-    '''if w%5 != 0:
-        if w%5 > 5:
-            for i in range(4):w_i.append(w//5+1)
-            w_i.append(w_i[0]*5-w+w//5)
-        else:
-            for i in range(4):w_i.append(w//5)
-            w_i.append(w-w_i[0]*4)
-    else:
-        for i in range(5):w_i.append(w//5)
-    
-    if h%5 != 0:
-        if h%5 > 5:
-            for i in range(4):h_i.append(h//5+1)
-            h_i.append(h_i[0]*5-h+h//5)
-        else:
-            for i in range(4):h_i.append(h//5)
-            h_i.append(h-h_i[0]*4)
-    else:
-        for i in range(5):h_i.append(h//5)'''
     for i in range(n_grids):w_i.append(w//n_grids)
     for i in range(n_grids):h_i.append(w//n_grids)
     # 归一化
-    loss = 0.2
+    loss = 0.5
     w_end,h_end = 0,0
     arr_matrix = []
+    percent = []
     for i in range(n_grids):
         col = w_end
         w_end += w_i[i]
@@ -59,18 +40,17 @@ def standard(img):
                 row = h_end-h_i[j]
                 while row<h_end:
                     if img[row,col] > 150:
-                        
                         count +=1
                     count_a +=1
                     row +=1
                 col +=1
+            percent.append(count/count_a)
             if count/count_a > loss:
                 arr_matrix.append(1)
             else:
                 arr_matrix.append(0)
-            
     matrix = np.array(arr_matrix).reshape(n_grids,n_grids).T
-    return matrix
+    return matrix,percent
 def getTrain():
     local = './data/train-images/'
     if_train = 1
@@ -85,23 +65,29 @@ def getTrain():
             os.remove(r"./data/output.csv")
     if if_train:
         std_library = pd.DataFrame(columns=range(100))#1-->100
+        std_library_pcr = pd.DataFrame(columns=range(100))#1-->100
         for n in range(10):#1-->10
             arr_ =[]
+            arr2_=[]
             for m in range(100):#1-->100
                 img = cv2.imread("%s%s_%s.bmp"%(local,n,m))
                 img = graying(img)
                 img = splitImg(img)
-                img = cv2.resize(img,(50,50))
+                img = cv2.resize(img,(100,100))
                 ret,img = cv2.threshold(img,100,255,cv2.THRESH_BINARY)
-                std_matrix = standard(img)
-                str_std = ''
+                cv2.imwrite("./data/std-images/%s_%s.bmp"%(n,m),img)
+                std_matrix,pcr = standard(img)
+                str_std= ''
+                str_pcr = ",".join(map(str,pcr))
                 for i in std_matrix.tolist():str_std = "%s,%s"%(str_std,",".join(map(str,i)))
                 arr_.append(str_std[1:])
+                arr2_.append(str_pcr[1:])
                 # print(std_matrix)
             std_library.loc[n] = arr_
-
+            std_library_pcr.loc[n] = arr2_
         #print(std_library)
         std_library.to_csv("./data/output.csv")
+        std_library_pcr.to_csv("./data/output_pcr.csv")
         #imshow(img)
         print("Start from creating.")
     else:
@@ -111,31 +97,47 @@ def getTrain():
 def main():
     local_test = './data/test-images/'
     dic_output = {}
+    output_ = {}
     std_library = getTrain()
     for n in range(10):#1-->10
+        sc,no,re = 0,0,0
         for m in range(20):#1-->20
             img = cv2.imread("%s%s_%s.bmp"%(local_test,n,m))
             img = graying(img)
             img = splitImg(img)
-            img = cv2.resize(img,(50,50))
+            img = cv2.resize(img,(100,100))
             ret,img = cv2.threshold(img,100,255,cv2.THRESH_BINARY)
             train_matrix = standard(img)
             #print(train_matrix)
+            hit,index,cols = 100,0,0
             for row in std_library.itertuples():
-                hit = 0
+
                 for i in range(1,101):#2-->101
                     now_str = getattr(row,"_%s"%i)
                     now_matrix = np.array(list(map(int,now_str.split(',')))).reshape(10,10)
-                    sub = now_matrix-train_matrix
-                    if np.sum(sub==0)/100 > hit: 
-                        hit = np.sum(sub==0)/100
-                    if hit == 1.0:
-                        break
-                if hit == 1.0:
-                    str_name = "%s_%s"%(n,m)
-                    dic_output[str_name] = row.Index
-                    #print(row.Index)
-                    break
-    print(dic_output)
+                    sub = np.sqrt(np.sum(np.square(now_matrix-train_matrix)))
+                    if sub < hit: 
+                        hit = sub
+                        index = row.Index
+                        cols = i
+            if hit <= 15 :
+            # 识别正确
+                sc +=1
+                str_name = "%s_%s"%(n,m)
+                dic_output[str_name] = "%s_%s"%(index,i)
+            elif hit <30 and 15<hit:
+            # 识别错误
+                no +=1
+                str_name = "%s_%s"%(n,m)
+                dic_output[str_name] = "fail"
+            elif hit >=30:
+            # 拒绝识别
+                re +=1
+                str_name = "%s_%s"%(n,m)
+                dic_output[str_name] = "refuse"
+
+        output_["%s"%n] = "%s,%s,%s"%(sc,no,re)
+
+    print(output_)
 if __name__ == "__main__":
     main()
