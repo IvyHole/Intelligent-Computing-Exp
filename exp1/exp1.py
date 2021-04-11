@@ -7,6 +7,7 @@ def graying(img):
     ret,thresh=cv2.threshold(img,250,255,cv2.THRESH_BINARY)
     img = thresh
     return thresh
+
 def splitImg(img):
     #img = graying(img)
     contours,hierarchy = cv2.findContours(img,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -15,6 +16,32 @@ def splitImg(img):
         #print([x,y,w,h])
     img = img[y:y+h,x:x+w]
     return img
+
+def cutImg(img):
+    row, col = img.shape[0],img.shape[1]
+    a,b,c,d=0,0,0,0
+    f = 1
+    for i in range(col):
+        for j in range(row):
+            if img[i,j]>150:
+                if f == 1:
+                    a = i
+                    f = 0
+                else:
+                    b = i
+    f = 1
+    for j in range(row):
+        for i in range(col):
+            if img[i,j] > 150:
+                if f == 1:
+                    c = j
+                    f = 0
+                else:
+                    d = j
+    #print(a,b,c,d)
+    img = img[a:b+1,c:d+1]
+    return img
+
 def standard(img):
     w,h = img.shape[1],img.shape[0]
     w_i,h_i=[],[]
@@ -51,6 +78,7 @@ def standard(img):
                 arr_matrix.append(0)
     matrix = np.array(arr_matrix).reshape(n_grids,n_grids).T
     return matrix,percent
+
 def getTrain():
     local = './data/train-images/'
     if_train = 1
@@ -94,32 +122,34 @@ def getTrain():
         print("Start from CSV file.")
     
     return std_library
+
 def main():
     local_test = './data/test-images/'
     dic_output = {}
     output_ = {}
     std_library = getTrain()
     for n in range(10):#1-->10
-        sc,no,re = 0,0,0
+        sc,no,re,alll = 0,0,0,0
         for m in range(20):#1-->20
             img = cv2.imread("%s%s_%s.bmp"%(local_test,n,m))
             img = graying(img)
             img = splitImg(img)
             img = cv2.resize(img,(100,100))
             ret,img = cv2.threshold(img,100,255,cv2.THRESH_BINARY)
-            train_matrix = standard(img)
-            #print(train_matrix)
+            test_matrix,test_percent = standard(img)
+            #print(test_matrix)
             hit,index,cols = 100,0,0
             for row in std_library.itertuples():
-
                 for i in range(1,101):#2-->101
                     now_str = getattr(row,"_%s"%i)
                     now_matrix = np.array(list(map(int,now_str.split(',')))).reshape(10,10)
-                    sub = np.sqrt(np.sum(np.square(now_matrix-train_matrix)))
+                    #print(now_matrix)
+                    sub = np.sqrt(np.sum(np.square(now_matrix-test_matrix)))
                     if sub < hit: 
                         hit = sub
                         index = row.Index
                         cols = i
+            alll += 1
             if hit <= 15 :
             # 识别正确
                 sc +=1
@@ -136,8 +166,8 @@ def main():
                 str_name = "%s_%s"%(n,m)
                 dic_output[str_name] = "refuse"
 
-        output_["%s"%n] = "%s,%s,%s"%(sc,no,re)
-
+        output_["%s"%n] = "%s%%,%s%%,%s%%"%(sc/alll*100,no/alll*100,re/alll*100)
     print(output_)
+    
 if __name__ == "__main__":
     main()
