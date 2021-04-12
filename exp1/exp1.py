@@ -124,16 +124,20 @@ def getTrain():
     return std_library
 
 def main():
-    local_test = './data/test-images/'
+    local_test = './data/test-images2/'
     dic_output = {}
     output_ = {}
     std_library = getTrain()
-    for n in range(10):#1-->10
-        sc,no,re,alll = 0,0,0,0
-        for m in range(20):#1-->20
-            img = cv2.imread("%s%s_%s.bmp"%(local_test,n,m))
-            img = graying(img)
-            img = splitImg(img)
+    all_nums = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
+    for root, dirs, files in os.walk(local_test):
+        for file in files:
+            nums = re.findall("\d",file)
+            n,m = nums[0],nums[1]
+            n,m = int(n),int(m)
+            img = cv2.imread("%s%s"%(local_test,file))
+            img = graying2(img)
+            #img = splitImg(img)
+            img = cutImg(img)
             img = cv2.resize(img,(100,100))
             ret,img = cv2.threshold(img,100,255,cv2.THRESH_BINARY)
             test_matrix,test_percent = standard(img)
@@ -149,25 +153,31 @@ def main():
                         hit = sub
                         index = row.Index
                         cols = i
-            alll += 1
+            #alll += 1
+            all_nums[n][0] += 1
             if hit <= 15 :
             # 识别正确
-                sc +=1
+                #sc +=1
+                all_nums[n][1] += 1
                 str_name = "%s_%s"%(n,m)
                 dic_output[str_name] = "%s_%s"%(index,i)
             elif hit <30 and 15<hit:
             # 识别错误
-                no +=1
+                #no +=1
+                all_nums[n][2] += 1
                 str_name = "%s_%s"%(n,m)
                 dic_output[str_name] = "fail"
             elif hit >=30:
             # 拒绝识别
-                re +=1
+                #re +=1
+                all_nums[n][3] += 1
                 str_name = "%s_%s"%(n,m)
                 dic_output[str_name] = "refuse"
+            #print(file)
+            #break
 
-        output_["%s"%n] = "%s%%,%s%%,%s%%"%(sc/alll*100,no/alll*100,re/alll*100)
-    print(output_)
+    print(all_nums)
+
     
 if __name__ == "__main__":
     main()
